@@ -117,13 +117,15 @@ def init_db():
   """)
   
   #  Create default admin if not exists
-  cursor.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
+  admin_config=st.secrets["admin"]
+  cursor.execute(f"SELECT COUNT(*) FROM users WHERE username = '{admin_config['ADMIN_USERNAME']}'")
+  
   if cursor.fetchone()[0] == 0:  # yah fetch kiye gaye result se pahle record(row or tuple) ke 0th index ke element ko return karega
-    hashed_admin_pw = hashlib.sha256("admin123".encode()).hexdigest()   # hashlib is builtin python library that uses sha256 algorithm to encript the password, encode string ko byte me convert kr deta hai , hexadecimal encripted bytes ko readable hexadecimal string me badal deta hai.
+    hashed_admin_pw = hashlib.sha256(admin_config["ADMIN_PASSWORD"].encode()).hexdigest()   # hashlib is builtin python library that uses sha256 algorithm to encript the password, encode string ko byte me convert kr deta hai , hexadecimal encripted bytes ko readable hexadecimal string me badal deta hai.
     cursor.execute("""
             INSERT INTO users (username, password, role, name, is_admin) 
-            VALUES ('admin', %s, 'Admin', 'Administrator', TRUE)
-        """, (hashed_admin_pw,))
+            VALUES (%s, %s, 'Admin', 'Administrator', TRUE)
+        """, (admin_config['ADMIN_USERNAME'], hashed_admin_pw))
 
   
   # 2. Batches Table (For Free Coaching Classes)
@@ -325,7 +327,7 @@ st.sidebar.markdown("---")
 # 1. HOME & E-LEARNING STOREFRONT
 # ==========================================
 def show_home():
-  st.markdown('<img src="https://yt3.googleusercontent.com/_iKaEf3vxxEBotsGvAzKrpwalc-RnWPS8d--iyA1odUKRhAi58FKpj-IHfpYH9C7RUBv_lTqVA=s900-c-k-c0x00ffffff-no-rj" class="logo">', unsafe_allow_html=True)
+  st.markdown('<img src="https://img.freepik.com/premium-vector/coaching-center-logo_1169041-70.jpg?w=2000" class="logo">', unsafe_allow_html=True)
   st.markdown('<p class="main-header">🌟 Youva Pahal - Free Coaching Institute & Notes Portal</p>', unsafe_allow_html=True)
   st.markdown("### *Empowering Underprivileged Children Through Free Education Up to Class 8th*")
 
