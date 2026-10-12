@@ -3,6 +3,6 @@ pandas
 mysql-connector-python
 certifi
 razorpay
-
+google-generativeai
 
 
