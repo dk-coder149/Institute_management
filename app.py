@@ -6,6 +6,7 @@ import streamlit as st
 import base64
 import certifi
 import razorpay
+import google.generativeai as genai
 
 
 # Page Config
@@ -20,7 +21,13 @@ RAZORPAY_KEY_ID = "YOUR_RAZORPAY_KEY_ID"
 RAZORPAY_KEY_SECRET = "YOUR_RAZORPAY_SECRET"
 # ===============================================================
 
-
+#    GEMINI AI CONFIGURATION ===================
+try:
+    genai.configure(api_key=st.secrets["gemini"]["api_key"])
+    ai_model = genai.GenerativeModel('gemini-3.8-flash')
+except Exception:
+    ai_model = None
+# ===============================================================
 
 
 # --- CUSTOM CSS to more effective UI ---
@@ -120,8 +127,8 @@ def init_db():
   admin_config=st.secrets["admin"]
   cursor.execute(f"SELECT COUNT(*) FROM users WHERE username = '{admin_config['ADMIN_USERNAME']}'")
   
-  if cursor.fetchone()[0] == 0:  # yah fetch kiye gaye result se pahle record(row or tuple) ke 0th index ke element ko return karega
-    hashed_admin_pw = hashlib.sha256(admin_config["ADMIN_PASSWORD"].encode()).hexdigest()   # hashlib is builtin python library that uses sha256 algorithm to encript the password, encode string ko byte me convert kr deta hai , hexadecimal encripted bytes ko readable hexadecimal string me badal deta hai.
+  if cursor.fetchone()[0] == 0:
+    hashed_admin_pw = hashlib.sha256(admin_config["ADMIN_PASSWORD"].encode()).hexdigest()
     cursor.execute("""
             INSERT INTO users (username, password, role, name, is_admin) 
             VALUES (%s, %s, 'Admin', 'Administrator', TRUE)
@@ -235,7 +242,6 @@ def init_db():
   conn.close()
 
 
-
 if "db_initialized" not in st.session_state:
   init_db()
   st.session_state.db_initialized = True
@@ -270,7 +276,6 @@ def fetch_all_students():
   cursor.close()
   conn.close()
   return pd.DataFrame(result)
-
 
 
 # Session States settings
@@ -324,6 +329,43 @@ else:
 st.sidebar.markdown("---")
 
 # ==========================================
+# AI STUDY ASSISTANT COMPONENT
+# ==========================================
+def render_ai_assistant_section(context_text=""):
+    st.markdown("---")
+    st.markdown("### 🤖 AI Study Assistant & Doubt Solver")
+    if ai_model is None:
+        st.warning("Gemini API Key missing in secrets! Please configure [gemini] api_key.")
+        return
+
+    tab1, tab2 = st.tabs(["📝 Notes Summary Generator", "💬 Ask AI Doubt"])
+    
+    with tab1:
+        if st.button("Generate Smart Summary", key=f"ai_sum_{hash(context_text)}"):
+            with st.spinner("AI is analyzing and summarizing content..."):
+                try:
+                    prompt = f"Summarize these educational study materials clearly for students with bullet points: {context_text}"
+                    response = ai_model.generate_content(prompt)
+                    st.success("AI Generated Summary:")
+                    st.write(response.text)
+                except Exception as e:
+                    st.error(f"AI Error: {e}")
+                    
+    with tab2:
+        user_doubt = st.text_input("Apna koi bhi study doubt ya sawal yahan poochein:", key=f"ai_doubt_{hash(context_text)}")
+        if st.button("Ask AI Tutor", key=f"ai_ask_{hash(context_text)}"):
+            if user_doubt:
+                with st.spinner("AI is thinking..."):
+                    try:
+                        response = ai_model.generate_content(user_doubt)
+                        st.info(response.text)
+                    except Exception as e:
+                        st.error(f"AI Error: {e}")
+            else:
+                st.warning("Pehle apna sawal likhein!")
+
+
+# ==========================================
 # 1. HOME & E-LEARNING STOREFRONT
 # ==========================================
 def show_home():
@@ -350,9 +392,9 @@ def show_home():
     """, unsafe_allow_html=True)
 
 
-  # About insitute Section
-  st.markdown("---")  # to draw a horizontal line separator
-  st.markdown("## 📖 About Our Free Coaching Institute")   # equals to h2 heading
+  # About institute Section
+  st.markdown("---")
+  st.markdown("## 📖 About Our Free Coaching Institute")
   st.markdown("""
     Our coaching institute is dedicated to providing **100% free education** to children from underprivileged and needy families who are unable to afford quality learning due to financial constraints. 
     This noble initiative is founded and managed by **Ramesh Singh** with the mission to build a brighter future, instil confidence, and provide strong foundational learning for every child.
@@ -361,9 +403,8 @@ def show_home():
     * **Founder & Director:** Ramesh Singh
     * **Fee Structure:** Completely Free (No charges)
     * **Mission:** Ensuring that no child is left behind due to a lack of resources.
-    """)  # '''...''' for string, and **..** for bold text, *..* for italic text, * for bulet points
+    """)
 
-  
   # Active Public Posts & Announcements
   conn = get_db_connection()
   cursor = conn.cursor(dictionary=True)
@@ -447,7 +488,6 @@ def show_home():
               finally:
                 cursor.close()
                 conn.close()
-
 
   # SECTION 2: STUDY NOTES STORE
   st.markdown("---")
@@ -569,10 +609,11 @@ def show_home():
                   cursor.close()
                   conn.close()
 
-
+  # Render AI Assistant on Home Page as well
+  render_ai_assistant_section("General study guidance for Youva Pahal students covering basic mathematics, junior English, and science.")
 
   # ==========================================
-  # PROFESSIONAL CIRCULAR FOOTER (STRICTLY FOR PUBLIC PAGE ONLY)
+  # PROFESSIONAL CIRCULAR FOOTER
   # ==========================================
   st.markdown("<br><br>", unsafe_allow_html=True)
   st.markdown("---")
@@ -607,8 +648,6 @@ def show_home():
           © 2026 Youva Pahal Free Coaching Centre | All Rights Reserved.
       </p>
   """, unsafe_allow_html=True)
-
-
 
 
 # ==========================================
@@ -682,6 +721,7 @@ def auth_page():
       else:
         st.warning("Please fill all fields.")
 
+
 # ==========================================
 # 3. ADMIN LOGIN
 # ==========================================
@@ -712,6 +752,7 @@ def admin_login_page():
       else:
         st.error("Invalid Admin credentials!")
 
+
 # ==========================================
 # 4. ADMIN PANEL (Combined Dashboard)
 # ==========================================
@@ -723,7 +764,6 @@ def admin_panel():
   st.title("🛠 Admin Dashboard - Institute & E-Learning Management")
   st.info(f"Welcome Admin: **{st.session_state.username}**")
 
-  # Using radio button in sidebar so all options are fully visible and neatly organized without dropdown truncation
   menu = st.sidebar.radio(
       "🛠️ Admin Management Menu",
       [
@@ -1141,6 +1181,7 @@ def admin_panel():
       else:
         st.info("No attendance records found.")
 
+
 # ==========================================
 # 5. USER PURCHASED LIBRARY & HISTORY
 # ==========================================
@@ -1168,6 +1209,10 @@ def user_library():
     for note in my_notes:
       st.markdown(f"### 📖 {note['title']}")
       st.write(note['description'])
+      
+      # Render AI Assistant for User's Library Notes
+      render_ai_assistant_section(f"Notes Title: {note['title']}, Description: {note['description']}")
+
       if note['file_content']:
         st.download_button(
             label="📥 Download PDF Notes",
@@ -1193,9 +1238,6 @@ def user_library():
     st.dataframe(pd.DataFrame(enrolled_batches), use_container_width=True)
 
 
- 
-
-
 # ==========================================
 # MAIN ROUTER
 # ==========================================
@@ -1209,6 +1251,3 @@ elif st.session_state.page == "Admin":
   admin_panel()
 elif st.session_state.page == "Library":
   user_library()
-
-
- 
